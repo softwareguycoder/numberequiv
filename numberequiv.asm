@@ -1,19 +1,19 @@
-;   Executable name         : uppercaser2
+;   Executable name         : numberequiv.asm
 ;   Version                 : 1.0
-;   Created date            : 28 Dec 2018
-;   Last update             : 28 Dec 2018
+;   Created date            : 7 Mar 2019
+;   Last update             : 7 Mar 2019
 ;   Author                  : Brian Hart
-;   Description             : A simple program in assembly for Linux, using NASM,
-;                             demonstrating simple text file I/O (through redirection) for reading an
-;                             input file to a buffer in blocks, forcing lowercase characters to 
-;                             uppercase, and writing the modified buffer to an output file.
+;   Description             : A simple program to take two numbers in from the user via the command line
+;                             and then tell the user whether they are equal, or whether they are different
+;                             from each other; in which case, this program outputs whether the first number
+;                             is greater than or less than the second.
 ;
 ;   Run it this way:
-;       uppercaser2 > (output file) < (input file)
+;       numberequiv > (output file) < (input file)
 ;
 ;   Build using these commands:
-;       nasm -f elf64 -g -F stabs uppercaser2.asm
-;       ld -o uppercaser2 uppercaser2.o
+;       nasm -f elf64 -g -F stabs numberequiv.asm
+;       ld -o numberequiv numberequiv.o
 ;
 SECTION     .bss                    ; Section contaning uninitialized data
 
@@ -44,15 +44,41 @@ Read:
         mov ecx, esi                ; Place the number of bytes read into ECX
         mov ebp, Buff               ; Place the address of the buffer into EBP
         dec ebp                     ; Adjust count to offset
-        
+
 ; Go through the buffer and convert lowercase to uppercase characters:
 Scan:
-        cmp byte [ebp+ecx], 61h     ; Test input char against lowercase 'a'
-        jb Next                     ; If below 'a' in ASCII chart, not lowercase
-        cmp byte [ebp+ecx], 7Ah     ; Test input char against lowercase 'z'
-        ja Next                     ; If above 'z' in ASCII chart, not lowercase
-                                    ; At this point, we have a lowercase char
-        sub byte [ebp+ecx], 20h     ; Subtract 20h to give uppercase...
+	; I need to check whether the user has typed a minus sign here
+	; but only if we are currently on the first char of the string
+	cmp ecx, 1		    ; If ecx=1, check whether current char is minus sign or not	    
+	jne Check-for-Digit	    ; Jump if Not Equal so we look for a digit
+Check-for-Minus:
+	cmp byte [ebp+ecx], 2Dh     ; Test input char against '-'
+	jne Next		    ; Skip if not a minus sign
+Check-for-Digit:
+        cmp byte [ebp+ecx], 30h     ; Test input char against '0'
+        jb Error                    ; If below '0' in ASCII chart, not a digit
+        cmp byte [ebp+ecx], 39h     ; Test input char against '9'
+        ja Error                    ; If above '9' in ASCII chart, not a digit
+                                    ; At this point, we have a digit
+        sub byte [ebp+ecx], 30h     ; Subtract 30h to give a digit...
+	cmp ecx, esi		    ; Check whether we are in the one's place, i.e., ecx == esi
+	je Next			    ; Don't waste time multiplying by 1, just skip
+
+	; If we are here, then we aren't on the one's place
+	; Figure out the power of 10 to apply to the current
+	; digit by finding the difference between the position 
+	; of the current digit and esi
+	mov edx, ecx		   ; Copy the value currently in ecx to edx
+	mov ebx, esi		   ; Copy the value currently in esi (num of chars read) to ebx
+	sub esi, edx		   ; Then subtract whatever's in edx from esi and save it in esi
+	mov edx, esi		   ; Now put the new value of esi into edx
+	mov esi, ebx	           ; restore the old value of esi from ebx
+
+	
+	
+
+Transform:
+
 Next:
         dec ecx                     ; Decrement counter
         jnz Scan                    ; If characters remain, loop back
@@ -65,12 +91,13 @@ Write:
         mov edx, esi                ; Pass the # of bytes of data in the buffer
         int 80h                     ; Make sys_write kernel call
         jmp Read                    ; Loop back and load another buffer full
-        
+
 ; All done! Let's end this party...
 Done:
         mov eax, 1                  ; Code for Exit Syscall
         mov ebx, 0                  ; Return a code of zero
         int 80h                     ; Make sys_exit kernel call
         
-              
-      
+Error:
+	mov eax, -1		    ; Program exit code: -1 for error
+	; Done
