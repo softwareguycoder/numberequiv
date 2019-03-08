@@ -29,6 +29,9 @@ SECTION     .data                   ; Section containing initialized data
     STDIN       EQU 0               ; Standard File Descriptor 0: Standard Input
     STDOUT      EQU 1               ; Standard File Descriptor 1: Standard Output
     STDERR      EQU 2               ; Standard File Descriptor 2: Standard Error
+    
+    EXIT_OK     EQU 0               ; Process exit code for successful termination
+    EXIT_ERR    EQU -1              ; Process exit code for a general error condition
 
     INVALIDVAL: db "ERROR! Invalid value.",10,0  
     INVALIDVALLEN equ $-INVALIDVAL      
@@ -50,10 +53,10 @@ Read:
         ; STDIN from, say, a redirect, then the exact number of chars in the text file (or every chunk of BUFFLIN chars)
         ; will be reported as read
 
-        mov eax, 3                  ; Specify sys_read call
-        mov ebx, 0                  ; Specify File Descriptor 0: Standard Input
-        mov ecx, INPUT               ; Pass offset of the buffer to read to
-        mov edx, INPUTLEN            ; Pass number of bytes to read at one pass
+        mov eax, SYS_READ           ; Specify sys_read call
+        mov ebx, STDIN              ; Specify File Descriptor 0: Standard Input
+        mov ecx, INPUT              ; Pass offset of the buffer to read to
+        mov edx, INPUTLEN           ; Pass number of bytes to read at one pass
         int 80h                     ; Call sys_read to fill the buffer
         mov esi, eax                ; Copy sys_read return value for safekeeping
         cmp eax, 0                  ; If eax=0, sys_read reached EOF on STDIN        
@@ -115,13 +118,13 @@ Done:
         mov edx, DONEMSGLEN         ; Length of the message
         int 80h                     ; Make kernel call
 
-        mov eax, 1                  ; Code for Exit Syscall
-        mov ebx, 0                  ; Return a code of zero
+        mov eax, SYS_EXIT           ; Code for Exit Syscall
+        mov ebx, EXIT_OK            ; Return a code of zero
         int 80h                     ; Make sys_exit kernel call
         
 Error:
         mov eax, SYS_WRITE          ; Specify sys_write syscall
-        mov ebx, 1                  ; Specify Standard File Descriptor 1: Standard Output
+        mov ebx, STDOUT             ; Specify Standard File Descriptor 1: Standard Output
         mov ecx, INVALIDVAL         ; Address of message to display
         mov edx, INVALIDVALLEN      ; Length of the message
         int 80h                     ; Make kernel call
@@ -130,6 +133,6 @@ Error:
 ; are not doing things correctly, we need to shut this whole thing down and with
 ; a system exit code of -1.  No reason it is -1 per se, just our choice.
 
-        mov eax, 1                  ; Code for Exit Syscall
-        mov ebx, -1                 ; Return a code of -1 for error
+        mov eax, SYS_EXIT           ; Code for Exit Syscall
+        mov ebx, EXIT_ERR           ; Return a code of -1 for error
         int 80h                     ; Make sys_exit kernel call
