@@ -17,8 +17,8 @@
 ;
 SECTION     .bss                    ; Section contaning uninitialized data
 
-      BUFFLEN equ 1024              ; Length of buffer
-      Buff:   resb BUFFLEN          ; Text buffer itself
+      INPUTLEN equ 1024             ; Length of buffer to store user input
+      INPUT:   resb INPUTLEN        ; Text buffer itself to store user input
       
 SECTION     .data                   ; Section containing initialized data
 
@@ -38,8 +38,8 @@ Read:
 
         mov eax, 3                  ; Specify sys_read call
         mov ebx, 0                  ; Specify File Descriptor 0: Standard Input
-        mov ecx, Buff               ; Pass offset of the buffer to read to
-        mov edx, BUFFLEN            ; Pass number of bytes to read at one pass
+        mov ecx, INPUT               ; Pass offset of the buffer to read to
+        mov edx, INPUTLEN            ; Pass number of bytes to read at one pass
         int 80h                     ; Call sys_read to fill the buffer
         mov esi, eax                ; Copy sys_read return value for safekeeping
         cmp eax, 0                  ; If eax=0, sys_read reached EOF on STDIN
@@ -47,7 +47,7 @@ Read:
         
 ; Set up the registers for the process buffer step:
         mov ecx, esi                ; Place the number of bytes read into ECX
-        mov ebp, Buff               ; Place the address of the buffer into EBP
+        mov ebp, INPUT               ; Place the address of the buffer into EBP
         dec ebp                     ; Adjust count to offset
 
 ; Go through the buffer and convert lowercase to uppercase characters:
@@ -88,7 +88,7 @@ Next:
 Write:    
         mov eax, 4                  ; Specify sys_write call
         mov ebx, 1                  ; Specify File Descriptor 1: Standard Input
-        mov ecx, Buff               ; Pass offset of the buffer
+        mov ecx, INPUT               ; Pass offset of the buffer
         mov edx, esi                ; Pass the # of bytes of data in the buffer
         int 80h                     ; Make sys_write kernel call
         jmp Read                    ; Loop back and load another buffer full
