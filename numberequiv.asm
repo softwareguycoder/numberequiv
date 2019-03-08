@@ -17,10 +17,24 @@
 ;
 SECTION     .bss                    ; Section contaning uninitialized data
 
-      INPUTLEN equ 1024             ; Length of buffer to store user input
-      INPUT:   resb INPUTLEN        ; Text buffer itself to store user input
-      
+    INPUTLEN equ 1024               ; Length of buffer to store user input
+    INPUT:   resb INPUTLEN          ; Text buffer itself to store user input
+     
 SECTION     .data                   ; Section containing initialized data
+
+    SYS_WRITE   EQU 4               ; Code for the sys_write syscall
+    SYS_READ    EQU 3               ; Code for the sys_read syscall
+    SYS_EXIT    EQU 1               ; Code for the sys_exit syscall
+    
+    STDIN       EQU 0               ; Standard File Descriptor 0: Standard Input
+    STDOUT      EQU 1               ; Standard File Descriptor 1: Standard Output
+    STDERR      EQU 2               ; Standard File Descriptor 2: Standard Error
+
+    INVALIDVAL: db "ERROR! Invalid value.",10,0  
+    INVALIDVALLEN equ $-INVALIDVAL      
+    
+    DONEMSG: db "Ding!",10,0
+    DONEMSGLEN EQU $-DONEMSG         
 
 SECTION     .text                   ; Section containing code
 
@@ -42,7 +56,7 @@ Read:
         mov edx, INPUTLEN            ; Pass number of bytes to read at one pass
         int 80h                     ; Call sys_read to fill the buffer
         mov esi, eax                ; Copy sys_read return value for safekeeping
-        cmp eax, 0                  ; If eax=0, sys_read reached EOF on STDIN
+        cmp eax, 0                  ; If eax=0, sys_read reached EOF on STDIN        
         je Done                     ; Jump If Equal (to 0, from compare)
         
 ; Set up the registers for the process buffer step:
@@ -52,6 +66,9 @@ Read:
 
 ; Go through the buffer and convert lowercase to uppercase characters:
 Scan:
+        xor ebx, ebx                ; Clear EBX
+        cmp ecx, 0                  ; Have we finished? If so, then don't move off the rez!
+        je Done                     ; If ecx == 0 then goto Done
 	                                ; I need to check whether the user has typed a minus sign here
                                     ; but only if we are currently on the first char of the string
         cmp ecx, 1                  ; If ecx=1, check whether current char is minus sign or not	    
@@ -65,41 +82,54 @@ CheckForDigit:
         cmp byte [ebp+ecx], 39h     ; Test input char against '9'
         ja Error                    ; If above '9' in ASCII chart, not a digit
                                     ; At this point, we have a digit
-        sub byte [ebp+ecx], 30h     ; Subtract 30h to give a digit...
-        cmp ecx, esi		        ; Check whether we are in the one's place, i.e., ecx == esi
-        je Next			            ; Don't waste time multiplying by 1, just skip
-
-        ; If we are here, then we aren't on the one's place
-        ; Figure out the power of 10 to apply to the current
-        ; digit by finding the difference between the position 
-        ; of the current digit and esi
-        mov edx, ecx                ; Copy the value currently in ecx to edx
-        mov ebx, esi                ; Copy the value currently in esi (num of chars read) to ebx
-        sub esi, edx                ; Then subtract whatever's in edx from esi and save it in esi
-        mov edx, esi                ; Now put the new value of esi into edx
-        mov esi, ebx                ; restore the old value of esi from ebx
+        sub byte [ebp+ecx], '0'     ; Convert from ASCII to digit
+        imul ebx,10                 ; Multiply ebx by 10 (signed), so as to get the power of 10 to use
+        movzx eax, byte [ebp+ecx]   ; Put the value of the current digit into EAX with zeroes
+        add ebx,eax                 ; ebx = ebx*10 + eax
+        jmp Next                    ; On to next loop iteraion
 Transform:
 
 Next:
         dec ecx                     ; Decrement counter
         jnz Scan                    ; If characters remain, loop back
-        
+        mov eax, ebx                ; Put the numeric value into EAX
+; numeric value is now in eax
+        jmp Write
 ; Write the buffer full of processed text to STDOUT:
 Write:    
-        mov eax, 4                  ; Specify sys_write call
+        ; If we are here, we have a value in EAX that is the number the user typed in
+        ; Now, let's convert that value into a string and display it
+
+        mov eax, SYS_WRITE          ; Specify sys_write syscall
         mov ebx, 1                  ; Specify File Descriptor 1: Standard Input
-        mov ecx, INPUT               ; Pass offset of the buffer
+        mov ecx, INPUT              ; Pass offset of the buffer
         mov edx, esi                ; Pass the # of bytes of data in the buffer
         int 80h                     ; Make sys_write kernel call
         jmp Read                    ; Loop back and load another buffer full
 
 ; All done! Let's end this party...
 Done:
+        mov eax, SYS_WRITE          ; Specify sys_write syscall
+        mov ebx, STDOUT             ; Specify Standard File Descriptor 1: Standard Output
+        mov ecx, DONEMSG            ; Address of message to display
+        mov edx, DONEMSGLEN         ; Length of the message
+        int 80h                     ; Make kernel call
+
         mov eax, 1                  ; Code for Exit Syscall
         mov ebx, 0                  ; Return a code of zero
         int 80h                     ; Make sys_exit kernel call
         
 Error:
+        mov eax, SYS_WRITE          ; Specify sys_write syscall
+        mov ebx, 1                  ; Specify Standard File Descriptor 1: Standard Output
+        mov ecx, INVALIDVAL         ; Address of message to display
+        mov edx, INVALIDVALLEN      ; Length of the message
+        int 80h                     ; Make kernel call
+
+; Because we arrived here at the Error label, and we've told the user that they
+; are not doing things correctly, we need to shut this whole thing down and with
+; a system exit code of -1.  No reason it is -1 per se, just our choice.
+
         mov eax, 1                  ; Code for Exit Syscall
         mov ebx, -1                 ; Return a code of -1 for error
         int 80h                     ; Make sys_exit kernel call
