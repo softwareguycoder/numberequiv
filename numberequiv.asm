@@ -121,18 +121,18 @@ ValidateNumericInput:
     xor ecx, ecx                    ; Clear ECX to be zero
     xor edx, edx                    ; Clear EDX to be zero
     .Scan:
-        cmp byte [edi+ecx], 20h     ; Test input char for a nonprinting char
-        jna .Next                   ; Ignore any nonprinting char
-        cmp byte [edi+ecx], 2Ch     ; Test input char for a thousands separator (comma)
-        je .Next                    ; Ignore commas
-        cmp byte [edi+ecx], 2Eh     ; Test input char for a decimal point
-        je Error                    ; Invalid value; floating-point numbers not supported
-        cmp byte [edi+ecx], '-'     ; Test input char for hyphen (might be a minus sign)
-        je .mightBeMinus            ; If currentChar == '-' then test whether it's the first char
         cmp byte [edi+ecx], 0       ; Test input char for null-terminator
         je .Next                    ; Skip to next char if so
         cmp byte [edi+ecx], 0Ah     ; Test input char for null-terminator
         je .Next                    ; Skip to next char if so
+        cmp byte [edi+ecx], 20h     ; Test input char for a nonprinting char
+        jna Error                   ; All nonprinting chars are invalid
+        cmp byte [edi+ecx], 2Dh     ; Test input char for hyphen (might be a minus sign)
+        je .mightBeMinus            ; If currentChar == '-' then test whether it's the first char
+        cmp byte [edi+ecx], 2Ch     ; Test input char for a thousands separator (comma)
+        je .Next                    ; Ignore commas
+        cmp byte [edi+ecx], 2Eh     ; Test input char for a decimal point
+        je Error                    ; Invalid value; floating-point numbers not supported
         cmp byte [edi+ecx], 30h     ; Test input char against '0'
         jb Error                    ; If below '0' in ASCII chart, not a digit
         cmp byte [edi+ecx], 39h     ; Test input char against '9'
